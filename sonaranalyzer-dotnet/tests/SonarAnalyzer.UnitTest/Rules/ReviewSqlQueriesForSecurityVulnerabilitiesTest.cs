@@ -67,7 +67,7 @@ class Program
     }
 }
 ",
-                new ReviewSqlQueriesForSecurityVulnerabilities(new TestAnalyzerConfiguration(workDir)));
+                new UcfgGeneratorUtility(new TestAnalyzerConfiguration(workDir)));
 
             var ucfgPath = Path.Combine(TestContext.TestRunResultsDirectory, "ucfg_cs");
             Directory.Exists(ucfgPath).Should().BeTrue();
@@ -107,7 +107,7 @@ class Program
                 },
             };
 
-            ReviewSqlQueriesForSecurityVulnerabilities.IsValid(ucfg).Should().BeFalse();
+            UcfgGeneratorUtility.IsValid(ucfg).Should().BeFalse();
         }
 
         [TestMethod]
@@ -126,7 +126,7 @@ class Program
                 },
             };
 
-            ReviewSqlQueriesForSecurityVulnerabilities.IsValid(ucfg).Should().BeTrue();
+            UcfgGeneratorUtility.IsValid(ucfg).Should().BeTrue();
         }
 
         [TestMethod]
@@ -148,7 +148,7 @@ class Program
                 },
             };
 
-            ReviewSqlQueriesForSecurityVulnerabilities.IsValid(ucfg).Should().BeTrue();
+            UcfgGeneratorUtility.IsValid(ucfg).Should().BeTrue();
         }
 
         [TestMethod]
@@ -167,7 +167,7 @@ class Program
                 },
             };
 
-            ReviewSqlQueriesForSecurityVulnerabilities.IsValid(ucfg).Should().BeFalse();
+            UcfgGeneratorUtility.IsValid(ucfg).Should().BeFalse();
         }
 
         [TestMethod]
@@ -186,7 +186,7 @@ class Program
                 },
             };
 
-            ReviewSqlQueriesForSecurityVulnerabilities.IsValid(ucfg).Should().BeFalse();
+            UcfgGeneratorUtility.IsValid(ucfg).Should().BeFalse();
         }
 
         private static string GetProtobufMethodId(string protobufPath)
