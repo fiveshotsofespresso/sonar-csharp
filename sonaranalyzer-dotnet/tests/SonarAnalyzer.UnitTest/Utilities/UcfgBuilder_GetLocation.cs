@@ -23,7 +23,7 @@ using FluentAssertions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ULocation = SonarAnalyzer.Protobuf.Ucfg.Location;
 
-namespace SonarAnalyzer.UnitTest.Security.Ucfg
+namespace SonarAnalyzer.UnitTest.Rules
 {
     [TestClass]
     public class UcfgBuilder_GetLocation : UcfgBuilderTestBase

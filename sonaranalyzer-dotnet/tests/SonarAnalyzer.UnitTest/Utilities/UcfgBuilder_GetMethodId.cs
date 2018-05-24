@@ -19,13 +19,14 @@
  */
 
 extern alias csharp;
-using csharp::SonarAnalyzer.Security.Ucfg;
+
+using csharp::SonarAnalyzer.Rules.CSharp;
 using FluentAssertions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace SonarAnalyzer.UnitTest.Security.Ucfg
+namespace SonarAnalyzer.UnitTest.Rules
 {
     [TestClass]
     public class UcfgBuilder_GetMethodId
@@ -124,7 +125,7 @@ public static class Extensions
             MethodId("Extension").Should().Be("Extensions.Extension(string, int)");
 
             string MethodId(string methodName, int skip = 0) =>
-                UniversalControlFlowGraphBuilder.GetMethodId(semanticModel.GetDeclaredSymbol(syntaxTree.GetMethod(methodName, skip)));
+                UcfgBuilder.GetMethodId(semanticModel.GetDeclaredSymbol(syntaxTree.GetMethod(methodName, skip)));
         }
 
         [TestMethod]
@@ -199,10 +200,10 @@ public class Class3
             PropertySetId("Property6").Should().Be("Class3.Property6.set");
 
             string PropertyGetId(string propertyName, int skip = 0) =>
-                UniversalControlFlowGraphBuilder.GetMethodId(semanticModel.GetDeclaredSymbol(syntaxTree.GetProperty(propertyName, skip)).GetMethod);
+                UcfgBuilder.GetMethodId(semanticModel.GetDeclaredSymbol(syntaxTree.GetProperty(propertyName, skip)).GetMethod);
 
             string PropertySetId(string propertyName, int skip = 0) =>
-                UniversalControlFlowGraphBuilder.GetMethodId(semanticModel.GetDeclaredSymbol(syntaxTree.GetProperty(propertyName, skip)).SetMethod);
+                UcfgBuilder.GetMethodId(semanticModel.GetDeclaredSymbol(syntaxTree.GetProperty(propertyName, skip)).SetMethod);
         }
 
 
@@ -226,7 +227,7 @@ namespace Namespace
             CtorId("Class1", skip: 1).Should().Be("Namespace.Class1.Class1(string)");
 
             string CtorId(string className, int skip = 0) =>
-                UniversalControlFlowGraphBuilder.GetMethodId(semanticModel.GetDeclaredSymbol(syntaxTree.GetConstructor(className, skip)));
+                UcfgBuilder.GetMethodId(semanticModel.GetDeclaredSymbol(syntaxTree.GetConstructor(className, skip)));
         }
 
         [TestMethod]
@@ -255,7 +256,7 @@ namespace Namespace
             MethodId("Foo", skip: 1).Should().Be("Namespace.Bar.Foo(string)");
 
             string MethodId(string methodName, int skip = 0) =>
-                UniversalControlFlowGraphBuilder.GetMethodId(semanticModel.GetDeclaredSymbol(syntaxTree.GetMethod(methodName, skip)));
+                UcfgBuilder.GetMethodId(semanticModel.GetDeclaredSymbol(syntaxTree.GetMethod(methodName, skip)));
         }
     }
 }

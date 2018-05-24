@@ -19,11 +19,12 @@
  */
 
 extern alias csharp;
-using csharp::SonarAnalyzer.Security.Ucfg;
+
+using csharp::SonarAnalyzer.Rules.CSharp;
 using FluentAssertions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace SonarAnalyzer.UnitTest.Security.Ucfg
+namespace SonarAnalyzer.UnitTest.Rules
 {
     [TestClass]
     public class EntryPointRecognizer_IsEntryPoint : UcfgBuilderTestBase

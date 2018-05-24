@@ -20,18 +20,16 @@
 
 extern alias csharp;
 using System.Linq;
-using csharp::SonarAnalyzer.Security;
-using csharp::SonarAnalyzer.Security.Ucfg;
+using csharp::SonarAnalyzer.Rules.CSharp;
 using FluentAssertions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Moq;
 using SonarAnalyzer.Protobuf.Ucfg;
 using SonarAnalyzer.SymbolicExecution.ControlFlowGraph;
 
-namespace SonarAnalyzer.UnitTest.Security.Ucfg
+namespace SonarAnalyzer.UnitTest.Rules
 {
     [TestClass]
     public class UcfgBuilder_Instructions : UcfgBuilderTestBase
@@ -585,10 +583,14 @@ public class Class1
                 .OfType<ConstructorDeclarationSyntax>()
                 .First(m => m.Identifier.ValueText == name);
 
-            var builder = new UniversalControlFlowGraphBuilder();
+            var cfg = CSharpControlFlowGraph.Create(ctor.Body, semanticModel);
 
-            var ucfg = builder.Build(semanticModel, ctor,
-                semanticModel.GetDeclaredSymbol(ctor), CSharpControlFlowGraph.Create(ctor.Body, semanticModel));
+            var ucfg = new UcfgBuilder(semanticModel)
+                .FromSignature(semanticModel.GetDeclaredSymbol(ctor), ctor)
+                .WithBlocks(cfg.Blocks)
+                .WithEntryPoint(cfg.EntryBlock)
+                .Build();
+
             return ucfg;
         }
     }

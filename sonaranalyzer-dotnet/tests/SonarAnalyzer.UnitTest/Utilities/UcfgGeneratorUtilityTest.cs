@@ -32,7 +32,7 @@ using SonarAnalyzer.Protobuf.Ucfg;
 namespace SonarAnalyzer.UnitTest.Rules
 {
     [TestClass]
-    public class ReviewSqlQueriesForSecurityVulnerabilitiesTest
+    public class UcfgGeneratorUtilityTest
     {
         public TestContext TestContext { get; set; }
 
@@ -107,7 +107,7 @@ class Program
                 },
             };
 
-            UcfgGeneratorUtility.IsValid(ucfg).Should().BeFalse();
+            UcfgBuilder.IsValid(ucfg).Should().BeFalse();
         }
 
         [TestMethod]
@@ -126,7 +126,7 @@ class Program
                 },
             };
 
-            UcfgGeneratorUtility.IsValid(ucfg).Should().BeTrue();
+            UcfgBuilder.IsValid(ucfg).Should().BeTrue();
         }
 
         [TestMethod]
@@ -148,7 +148,7 @@ class Program
                 },
             };
 
-            UcfgGeneratorUtility.IsValid(ucfg).Should().BeTrue();
+            UcfgBuilder.IsValid(ucfg).Should().BeTrue();
         }
 
         [TestMethod]
@@ -167,7 +167,7 @@ class Program
                 },
             };
 
-            UcfgGeneratorUtility.IsValid(ucfg).Should().BeFalse();
+            UcfgBuilder.IsValid(ucfg).Should().BeFalse();
         }
 
         [TestMethod]
@@ -186,7 +186,7 @@ class Program
                 },
             };
 
-            UcfgGeneratorUtility.IsValid(ucfg).Should().BeFalse();
+            UcfgBuilder.IsValid(ucfg).Should().BeFalse();
         }
 
         private static string GetProtobufMethodId(string protobufPath)

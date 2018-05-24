@@ -19,10 +19,8 @@
  */
 
 using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
-using System.Linq;
 using System.Threading;
 using Google.Protobuf;
 using Microsoft.CodeAnalysis;
@@ -31,8 +29,6 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using SonarAnalyzer.Common;
 using SonarAnalyzer.Helpers;
-using SonarAnalyzer.Protobuf.Ucfg;
-using SonarAnalyzer.Security.Ucfg;
 using SonarAnalyzer.SymbolicExecution.ControlFlowGraph;
 
 namespace SonarAnalyzer.Rules.CSharp
@@ -101,21 +97,6 @@ namespace SonarAnalyzer.Rules.CSharp
                 });
         }
 
-        internal /*for testing*/ static bool IsValid(UCFG ucfg)
-        {
-            var existingBlockIds = new HashSet<string>(ucfg.BasicBlocks.Select(b => b.Id));
-
-            return ucfg.BasicBlocks.All(HasTerminator)
-                && ucfg.BasicBlocks.All(JumpsToExistingBlock)
-                && ucfg.Entries.All(existingBlockIds.Contains);
-
-            bool HasTerminator(BasicBlock block) =>
-                block.Jump != null || block.Ret != null;
-
-            bool JumpsToExistingBlock(BasicBlock block) =>
-                block.Jump == null || block.Jump.Destinations.All(existingBlockIds.Contains);
-        }
-
         private void WriteUCFG<TDeclarationSyntax>(SyntaxNodeAnalysisContext context, Func<TDeclarationSyntax, CSharpSyntaxNode> getBody)
             where TDeclarationSyntax : SyntaxNode
         {
@@ -135,19 +116,20 @@ namespace SonarAnalyzer.Rules.CSharp
                 return;
             }
 
-            var ucfg = new UniversalControlFlowGraphBuilder()
-                .Build(context.SemanticModel, declaration, methodSymbol, cfg);
+            var ucfg = new UcfgBuilder(context.SemanticModel)
+                .FromSignature(methodSymbol, declaration)
+                .WithBlocks(cfg.Blocks)
+                .WithEntryPoint(cfg.EntryBlock)
+                .Build();
 
-            if (!IsValid(ucfg))
+            if (ucfg != null)
             {
-                return;
-            }
-
-            var path = Path.Combine(protobufDirectory,
-                $"ucfg_{projectBuildId}_{Interlocked.Increment(ref protobufFileIndex)}.pb");
-            using (var stream = File.Create(path))
-            {
-                ucfg.WriteTo(stream);
+                var path = Path.Combine(protobufDirectory,
+                    $"ucfg_{projectBuildId}_{Interlocked.Increment(ref protobufFileIndex)}.pb");
+                using (var stream = File.Create(path))
+                {
+                    ucfg.WriteTo(stream);
+                }
             }
         }
 

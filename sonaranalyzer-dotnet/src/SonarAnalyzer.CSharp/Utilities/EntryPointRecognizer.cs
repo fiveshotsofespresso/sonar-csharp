@@ -22,7 +22,7 @@ using System.Collections.Generic;
 using Microsoft.CodeAnalysis;
 using SonarAnalyzer.Helpers;
 
-namespace SonarAnalyzer.Security.Ucfg
+namespace SonarAnalyzer.Rules.CSharp
 {
     public static class EntryPointRecognizer
     {
