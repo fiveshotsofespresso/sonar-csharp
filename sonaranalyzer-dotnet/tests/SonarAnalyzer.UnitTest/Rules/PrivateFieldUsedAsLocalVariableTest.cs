@@ -33,5 +33,12 @@ namespace SonarAnalyzer.UnitTest.Rules
         {
             Verifier.VerifyAnalyzer(@"TestCases\PrivateFieldUsedAsLocalVariable.cs", new PrivateFieldUsedAsLocalVariable());
         }
+
+        [TestMethod]
+        [TestCategory("Rule")]
+        public void PrivateFieldUsedAsLocalVariable_FalsePositives()
+        {
+            Verifier.VerifyAnalyzer(@"TestCases\PrivateFieldUsedAsLocalVariable_FalsePositives.cs", new PrivateFieldUsedAsLocalVariable());
+        }
     }
 }
