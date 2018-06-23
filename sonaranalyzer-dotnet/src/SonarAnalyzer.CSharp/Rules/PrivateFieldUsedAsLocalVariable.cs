@@ -21,6 +21,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -55,8 +56,8 @@ namespace SonarAnalyzer.Rules.CSharp
                         return;
                     }
 
-                    var privateFields = GetPrivateFields(classNode, c.SemanticModel);
-                    var referencesByEnclosingSymbol = GetReferencesByEnclosingSymbol(classNode, privateFields, c.SemanticModel);
+                    var fieldSymbolToPrivateFieldMap = GetPrivateFields(classNode, c.SemanticModel);
+                    var refSymbolToRefNodeToFieldMap = GetReferencesByEnclosingSymbol(classNode, fieldSymbolToPrivateFieldMap, c.SemanticModel);
 
                     var classSymbol = c.SemanticModel.GetDeclaredSymbol(classNode);
                     if (classSymbol == null)
@@ -66,11 +67,11 @@ namespace SonarAnalyzer.Rules.CSharp
 
                     var classMethods = classSymbol.GetMembers().Where(m => m.Kind == SymbolKind.Method).ToHashSet();
 
-                    ExcludePrivateFieldsBasedOnReferences(privateFields, referencesByEnclosingSymbol, classMethods);
-                    ExcludePrivateFieldsBasedOnCompilerErrors(privateFields, referencesByEnclosingSymbol, classMethods,
+                    ExcludePrivateFieldsBasedOnReferences(fieldSymbolToPrivateFieldMap, refSymbolToRefNodeToFieldMap, classMethods);
+                    ExcludePrivateFieldsBasedOnCompilerErrors(fieldSymbolToPrivateFieldMap, refSymbolToRefNodeToFieldMap, classMethods,
                         classNode, c.SemanticModel.Compilation);
 
-                    foreach (var privateField in privateFields.Values.Where(f => !f.Excluded))
+                    foreach (var privateField in fieldSymbolToPrivateFieldMap.GetIncludedFields())
                     {
                         c.ReportDiagnosticWhenActive(Diagnostic.Create(rule, privateField.Syntax.GetLocation(),
                             privateField.Symbol.Name));
@@ -79,38 +80,42 @@ namespace SonarAnalyzer.Rules.CSharp
                 SyntaxKind.ClassDeclaration, SyntaxKind.StructDeclaration);
         }
 
-        private static IImmutableDictionary<ISymbol, PrivateField> GetPrivateFields(TypeDeclarationSyntax classNode,
+        private static FieldSymbolToPrivateFieldMap GetPrivateFields(TypeDeclarationSyntax classNode,
             SemanticModel semanticModel)
         {
-            return classNode.Members
+            var privateFields = classNode.Members
                         .Where(m => m.IsKind(SyntaxKind.FieldDeclaration))
                         .Cast<FieldDeclarationSyntax>()
                         .Where(f => !f.AttributeLists.Any())
                         .SelectMany(f => f.Declaration.Variables.Select(
-                            v => new PrivateField(v, semanticModel.GetDeclaredSymbol(v))))
-                        .Where(f => f.Symbol != null && f.Symbol.DeclaredAccessibility == Accessibility.Private)
-                        .ToImmutableDictionary(
-                            f => f.Symbol,
-                            f => f);
+                            v => new PrivateField(v, semanticModel.GetDeclaredSymbol(v) as IFieldSymbol)))
+                        .Where(f => f.Symbol != null && f.Symbol.DeclaredAccessibility == Accessibility.Private);
+
+            var map = new FieldSymbolToPrivateFieldMap();
+            foreach(var privateField in privateFields)
+            {
+                map.Add(privateField.Symbol, privateField);
+            }
+            return map;
         }
 
-        private static IDictionary<ISymbol, IDictionary<SyntaxNode, ISymbol>> GetReferencesByEnclosingSymbol(
+        private static IDictionary<ISymbol, ReferencingNodeToFieldSymbolMap> GetReferencesByEnclosingSymbol(
             SyntaxNode node,
-            IImmutableDictionary<ISymbol, PrivateField> privateFields,
+            FieldSymbolToPrivateFieldMap privateFieldsMap,
             SemanticModel semanticModel)
         {
-            var privateFieldNames = privateFields.Keys.Select(s => s.Name).ToHashSet();
+            var privateFieldNames = privateFieldsMap.Keys.Select(s => s.Name).ToHashSet();
 
             var potentialReferences = node.DescendantNodes()
                 .Where(n => n.IsKind(SyntaxKind.IdentifierName))
                 .Cast<IdentifierNameSyntax>()
                 .Where(id => privateFieldNames.Contains(id.Identifier.ValueText));
 
-            var builder = new Dictionary<ISymbol, IDictionary<SyntaxNode, ISymbol>>();
+            var builder = new Dictionary<ISymbol, ReferencingNodeToFieldSymbolMap>();
             foreach (var potentialReference in potentialReferences)
             {
-                var referencedSymbol = semanticModel.GetSymbolInfo(potentialReference).Symbol;
-                if (referencedSymbol == null || !privateFields.ContainsKey(referencedSymbol))
+                var referencedSymbol = semanticModel.GetSymbolInfo(potentialReference).Symbol as IFieldSymbol;
+                if (referencedSymbol == null || !privateFieldsMap.ContainsKey(referencedSymbol))
                 {
                     continue;
                 }
@@ -129,58 +134,52 @@ namespace SonarAnalyzer.Rules.CSharp
                 }
 
 
-                var enclosingSymbol = semanticModel.GetEnclosingSymbol(potentialReference.SpanStart);
-                if (!builder.ContainsKey(enclosingSymbol))
+                var referringSymbol = semanticModel.GetEnclosingSymbol(potentialReference.SpanStart);
+                if (!builder.ContainsKey(referringSymbol))
                 {
-                    builder.Add(enclosingSymbol, new Dictionary<SyntaxNode, ISymbol>());
+                    builder.Add(referringSymbol, new ReferencingNodeToFieldSymbolMap());
                 }
 
-                builder[enclosingSymbol].Add(referenceSyntax, referencedSymbol);
+                builder[referringSymbol].Add(referenceSyntax, referencedSymbol);
             }
 
             return builder;
         }
 
         private static void ExcludePrivateFieldsBasedOnReferences(
-            IImmutableDictionary<ISymbol, PrivateField> privateFields,
-            IDictionary<ISymbol, IDictionary<SyntaxNode, ISymbol>> referencesByEnclosingSymbol,
+            FieldSymbolToPrivateFieldMap fieldSymbolToPrivateFieldMap,
+            IDictionary<ISymbol, ReferencingNodeToFieldSymbolMap> refSymbolToRefNodeToFieldMap,
             ISet<ISymbol> classMethods)
         {
-            var referencedAtLeastOnceFromClassMethod = new HashSet<ISymbol>();
+            var referencedAtLeastOnceFromClassMethod = new HashSet<IFieldSymbol>();
 
-            foreach (var references in referencesByEnclosingSymbol)
+            foreach (var references in refSymbolToRefNodeToFieldMap)
             {
+                // If referred to from outside a class method then exclude the field
                 if (!classMethods.Contains(references.Key))
                 {
-                    foreach (var reference in references.Value)
-                    {
-                        privateFields[reference.Value].Excluded = true;
-                    }
-
+                    fieldSymbolToPrivateFieldMap.MarkFieldsAsExcluded(references.Value.Values);
                     continue;
                 }
 
-                foreach (var reference in references.Value)
+                // Exclude usages that aren't simple field references
+                foreach (var refNodeToField in references.Value)
                 {
-                    referencedAtLeastOnceFromClassMethod.Add(reference.Value);
+                    referencedAtLeastOnceFromClassMethod.Add(refNodeToField.Value);
 
-                    if (!IsReferenceToSingleFieldValue(reference))
+                    if (!IsReferenceToSingleFieldValue(refNodeToField))
                     {
-                        privateFields[reference.Value].Excluded = true;
+                        fieldSymbolToPrivateFieldMap.MarkFieldAsExcluded(refNodeToField.Value);
                     }
                 }
             }
 
-            foreach (var privateField in privateFields.Values)
-            {
-                if (!referencedAtLeastOnceFromClassMethod.Contains(privateField.Symbol))
-                {
-                    privateField.Excluded = true;
-                }
-            }
+            // Exclude fields that aren't referenced by any private method
+            fieldSymbolToPrivateFieldMap.MarkFieldsAsExcluded(
+                fieldSymbolToPrivateFieldMap.Keys.Except(referencedAtLeastOnceFromClassMethod));
         }
 
-        private static bool IsReferenceToSingleFieldValue(KeyValuePair<SyntaxNode, ISymbol> reference)
+        private static bool IsReferenceToSingleFieldValue(KeyValuePair<SyntaxNode, IFieldSymbol> reference)
         {
             if (reference.Key.IsKind(SyntaxKind.IdentifierName) || reference.Value.IsStatic)
             {
@@ -201,8 +200,8 @@ namespace SonarAnalyzer.Rules.CSharp
         }
 
         private static void ExcludePrivateFieldsBasedOnCompilerErrors(
-            IImmutableDictionary<ISymbol, PrivateField> privateFields,
-            IDictionary<ISymbol, IDictionary<SyntaxNode, ISymbol>> referencesByEnclosingSymbol,
+            FieldSymbolToPrivateFieldMap privateFields,
+            IDictionary<ISymbol, ReferencingNodeToFieldSymbolMap> referencesByEnclosingSymbol,
             IEnumerable<ISymbol> classMethods,
             TypeDeclarationSyntax classNode,
             Compilation compilation)
@@ -236,7 +235,7 @@ namespace SonarAnalyzer.Rules.CSharp
                 new[] { newSyntaxTree }, compilation.References, compilation.Options as CSharpCompilationOptions);
 
             var diagnostics = newCompilation.GetDiagnostics();
-            foreach (var privateField in privateFields.Values.Where(f => !f.Excluded))
+            foreach (var privateField in privateFields.GetIncludedFields())
             {
                 if (diagnostics.Any(d => d.Id == WellKnownDiagnosticIds.ERR_UseDefViolation
                                          && d.GetMessage().Contains(privateField.UniqueName)))
@@ -247,8 +246,8 @@ namespace SonarAnalyzer.Rules.CSharp
         }
 
         private static bool TryRewriteMethodBody(
-            IImmutableDictionary<ISymbol, PrivateField> privateFields,
-            IImmutableDictionary<SyntaxNode, ISymbol> references,
+            FieldSymbolToPrivateFieldMap privateFields,
+            IDictionary<SyntaxNode, IFieldSymbol> references,
             ISymbol classMethod,
             out BlockSyntax body,
             out BlockSyntax newBody)
@@ -263,12 +262,9 @@ namespace SonarAnalyzer.Rules.CSharp
 
             if (!TryGetMemberBody(classMethod, out body))
             {
-                // We don't know how the field is being used within this method
-                foreach (var reference in references)
-                {
-                    privateFields[reference.Value].Excluded = true;
-                }
-
+                // We don't know how the fields are being used within this method
+                privateFields.MarkFieldsAsExcluded(references.Values);
+ 
                 newBody = null;
 
                 return false;
@@ -301,9 +297,9 @@ namespace SonarAnalyzer.Rules.CSharp
         }
 
         private static BlockSyntax RewriteBody(
-            IImmutableDictionary<ISymbol, PrivateField> privateFields,
+            FieldSymbolToPrivateFieldMap privateFields,
             BlockSyntax body,
-            IImmutableDictionary<SyntaxNode, ISymbol> references,
+            IDictionary<SyntaxNode, IFieldSymbol> references,
             out ISet<SyntaxNode> rewrittenNodes)
         {
             var symbolsToRewrite = references.Values.ToHashSet();
@@ -337,8 +333,8 @@ namespace SonarAnalyzer.Rules.CSharp
         }
 
         private static bool ExcludePrivateFieldsBasedOnRewrittenNodes(
-            IImmutableDictionary<ISymbol, PrivateField> privateFields,
-            IImmutableDictionary<SyntaxNode, ISymbol> references,
+            FieldSymbolToPrivateFieldMap privateFields,
+            IDictionary<SyntaxNode, IFieldSymbol> references,
             ISet<SyntaxNode> rewrittenNodes)
         {
             var partiallyRewrittenSymbols = references
@@ -346,10 +342,7 @@ namespace SonarAnalyzer.Rules.CSharp
                 .Select(r => r.Value)
                 .ToHashSet();
 
-            foreach (var partiallyRewrittenSymbol in partiallyRewrittenSymbols)
-            {
-                privateFields[partiallyRewrittenSymbol].Excluded = true;
-            }
+            privateFields.MarkFieldsAsExcluded(partiallyRewrittenSymbols);
 
             var allSymbolsToRewrite = references.Values.ToHashSet();
 
@@ -358,7 +351,7 @@ namespace SonarAnalyzer.Rules.CSharp
 
         private class PrivateField
         {
-            public PrivateField(VariableDeclaratorSyntax syntax, ISymbol symbol)
+            public PrivateField(VariableDeclaratorSyntax syntax, IFieldSymbol symbol)
             {
                 Syntax = syntax;
                 Symbol = symbol;
@@ -367,9 +360,37 @@ namespace SonarAnalyzer.Rules.CSharp
             }
 
             public VariableDeclaratorSyntax Syntax { get; private set; }
-            public ISymbol Symbol { get; private set; }
+            public IFieldSymbol Symbol { get; private set; }
             public string UniqueName { get; private set; }
             public bool Excluded { get; set; }
         }
+
+        private class FieldSymbolToPrivateFieldMap : Dictionary<IFieldSymbol, PrivateField>
+        {
+            public void MarkFieldsAsExcluded(IEnumerable<IFieldSymbol> fields)
+            {
+                foreach (var field in fields)
+                {
+                    MarkFieldAsExcluded(field);
+                }
+            }
+
+            public void MarkFieldAsExcluded(IFieldSymbol fieldSymbol)
+            {
+                Debug.Assert(this.ContainsKey(fieldSymbol), "Expecting supplied field symbol to be in the map");
+                if (this.TryGetValue(fieldSymbol, out PrivateField privateField))
+                {
+                    privateField.Excluded = true;
+                }
+            }
+
+            public IEnumerable<PrivateField> GetIncludedFields() =>
+                this.Values.Where(pf => !pf.Excluded);
+        }
+
+        private class ReferencingNodeToFieldSymbolMap : Dictionary<SyntaxNode, IFieldSymbol>
+        {
+        }
+
     }
 }
