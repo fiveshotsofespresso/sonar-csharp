@@ -237,7 +237,7 @@ namespace SonarAnalyzer.UnitTest
 
                         if (expectedIssues.Count != 0)
                         {
-                            Execute.Assertion.FailWith($"Issue expected but not raised on line(s) {string.Join(",", expectedIssues.Select(i => i.LineNumber))}.");
+                            Execute.Assertion.FailWith($"Missing issues on line(s) {string.Join(",", expectedIssues.Select(i => i.LineNumber))}.");
                         }
 
                         // When there are no diagnostics reported from the test (for example the FileLines analyzer
@@ -268,12 +268,12 @@ namespace SonarAnalyzer.UnitTest
 
             if (expectedIssue == null)
             {
-                Execute.Assertion.FailWith($"Issue with message '{message}' not expected on line {lineNumber}");
+                Execute.Assertion.FailWith($"Line {lineNumber}: unexpected message '{message}'");
             }
 
             if (expectedIssue.Message != null && expectedIssue.Message != message)
             {
-                Execute.Assertion.FailWith($"Expected message on line {lineNumber} to be '{expectedIssue.Message}', but got '{message}'.");
+                Execute.Assertion.FailWith($"Line {lineNumber}: expected message to be '{expectedIssue.Message}' but got '{message}'.");
             }
 
             var diagnosticStart = location.GetLineSpan().StartLinePosition.Character;
@@ -281,13 +281,13 @@ namespace SonarAnalyzer.UnitTest
             if (expectedIssue.Start.HasValue && expectedIssue.Start != diagnosticStart)
             {
                 Execute.Assertion.FailWith(
-                    $"Expected issue on line {lineNumber} to start on column {expectedIssue.Start} but got column {diagnosticStart}.");
+                    $"Line {lineNumber}: expected issue to start on column {expectedIssue.Start} but got {diagnosticStart}.");
             }
 
             if (expectedIssue.Length.HasValue && expectedIssue.Length != location.SourceSpan.Length)
             {
                 Execute.Assertion.FailWith(
-                    $"Expected issue on line {lineNumber} to have a length of {expectedIssue.Length} but got a length of {location.SourceSpan.Length}).");
+                    $"Line {lineNumber}: expected length of {expectedIssue.Length} but got {location.SourceSpan.Length}).");
             }
 
             expectedIssues.Remove(expectedIssue);
