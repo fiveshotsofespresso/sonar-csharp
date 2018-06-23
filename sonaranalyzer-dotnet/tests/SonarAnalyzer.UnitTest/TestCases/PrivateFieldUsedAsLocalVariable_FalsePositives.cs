@@ -5,7 +5,7 @@ namespace Tests.Diagnostics
     // Issue #158: https://github.com/SonarSource/sonar-csharp/issues/158
     public class Repro
     {
-        bool field;
+        bool field; // Noncompliant <-- false positive
 
         public void m1()
         {
