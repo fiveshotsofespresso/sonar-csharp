@@ -793,5 +793,80 @@ namespace Namespace
 }";
             UcfgVerifier.VerifyInstructions(code, "Foo");
         }
+
+        [TestMethod]
+        public void Indexer_Get()
+        {
+            const string code = @"
+using System.Collections.Generic;
+namespace Namespace
+{
+    public class Class1
+    {
+        public string this[int index]
+        {
+            get { return 0; }
+        }
+
+        public string this[string format, params object[] args]
+        {
+            get { return string.Format(format, args); }
+        }
+
+        public void Foo(Class1 other)
+        {
+            var list = new List<string>();              // %0 := new System.Collections.Generic.List<T>
+                                                        // %1 := System.Collections.Generic.List<T>.List() [ %0 ]
+                                                        // list := __id [ %0 ]
+
+            var item0 = list[0];                        // %2 := __arrayGet [ list ]
+                                                        // item0 := __id [ %2 ]
+
+            var result = other[0];                      // %3 := __arrayGet [ other ]
+                                                        // result := __id [ %3 ]
+
+            var format = this[""test {0}"", other];     // %4 := __arrayGet [ this ]
+                                                        // format := __id [ %4 ]
+        }
+    }
+}";
+            UcfgVerifier.VerifyInstructions(code, "Foo");
+        }
+
+        [TestMethod]
+        public void Indexer_Set()
+        {
+            const string code = @"
+using System.Collections.Generic;
+namespace Namespace
+{
+    public class Class1
+    {
+        public string this[int index]
+        {
+            set { }
+        }
+
+        public string this[string format, params object[] args]
+        {
+            set { }
+        }
+
+        public void Foo(Class1 other)
+        {
+            var list = new List<string>();          // %0 := new System.Collections.Generic.List<T>
+                                                    // %1 := System.Collections.Generic.List<T>.List() [ %0 ]
+                                                    // list := __id [ %0 ]
+
+            list[0] = ""foo"";                      // %2 := __arraySet [ list const ]
+
+            other[0] = ""foo"";                     // %3 := __arraySet [ other const ]
+
+            this[""test {0}"", other] = ""foo"";    // %4 := __arraySet [ this const ]
+        }
+    }
+}";
+            UcfgVerifier.VerifyInstructions(code, "Foo");
+        }
     }
 }
