@@ -53,7 +53,7 @@ namespace SonarAnalyzer.ControlFlowGraph.CSharp
         public UcfgExpression CreateConstant(IMethodSymbol methodSymbol) =>
             new UcfgExpression.ConstantExpression(methodSymbol);
 
-        public UcfgExpression CreateArrayAccess(ISymbol symbol, UcfgExpression targetExpression) =>
+        public UcfgExpression CreateElementAccess(ISymbol symbol, UcfgExpression targetExpression) =>
             new UcfgExpression.ElementAccessExpression(symbol, targetExpression);
 
         public UcfgExpression Create(ISymbol symbol, UcfgExpression targetExpression)

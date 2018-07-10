@@ -744,26 +744,7 @@ namespace Namespace
     {
         public void Foo(string s, string[] a, string[][] jagged, string[,] multi, List<string> list)
         {
-            a[0] = s;           // %0 := __arraySet [ a s ]
-
-            ((a[0])) = s;       // %1 := __arraySet [ a s ]
-
-            jagged[0][0] = s;   // %2 := __arrayGet [ jagged ]
-                                // %3 := __arraySet [ %2 s ]
-
-            multi[0, 0] = s;    // %4 := __arraySet [ multi s ]
-
-            ((jagged[0]))[0] = s;   // %5 := __arrayGet [ jagged ]
-                                    // %6 := __arraySet [ %5 s ]
-
-            a[0] = a[1];        // %7 := __arrayGet [ a ]
-                                // %8 := __arraySet [ a %7 ]
-
-            // Strings and lists have indexers but should not be handled as arrays;
-            // until collection indexers are supported, the string and list element
-            // access is represented as constant
-            var c = s[0];       // c := __id [ const ]
-            var i = list[0];    // i := __id [ const ]
+            var x = a[1];        // %7 := __arrayGet [ a ]
         }
     }
 }";
@@ -819,13 +800,13 @@ namespace Namespace
                                                         // %1 := System.Collections.Generic.List<T>.List() [ %0 ]
                                                         // list := __id [ %0 ]
 
-            var item0 = list[0];                        // %2 := __arrayGet [ list ]
+            var item0 = list[0];                        // %2 := System.Collections.Generic.List<T>.this[int].get [ list const ]
                                                         // item0 := __id [ %2 ]
 
-            var result = other[0];                      // %3 := __arrayGet [ other ]
+            var result = other[0];                      // %3 := Namespace.Class1.this[int].get [ other const ]
                                                         // result := __id [ %3 ]
 
-            var format = this[""test {0}"", other];     // %4 := __arrayGet [ this ]
+            var format = this[""test {0}"", other];     // %4 := Namespace.Class1.this[string, params object[]].get [ this const other ]
                                                         // format := __id [ %4 ]
         }
     }
@@ -844,6 +825,7 @@ namespace Namespace
     {
         public string this[int index]
         {
+            get { return 0; }
             set { }
         }
 
@@ -854,19 +836,17 @@ namespace Namespace
 
         public void Foo(Class1 other)
         {
-            var list = new List<string>();          // %0 := new System.Collections.Generic.List<T>
-                                                    // %1 := System.Collections.Generic.List<T>.List() [ %0 ]
-                                                    // list := __id [ %0 ]
-
-            list[0] = ""foo"";                      // %2 := __arraySet [ list const ]
-
-            other[0] = ""foo"";                     // %3 := __arraySet [ other const ]
-
-            this[""test {0}"", other] = ""foo"";    // %4 := __arraySet [ this const ]
+            var x = other[0];                     // ignored
         }
     }
 }";
             UcfgVerifier.VerifyInstructions(code, "Foo");
+            this[0] = "";
+        }
+
+        public string this[int index]
+        {
+            set { }
         }
     }
 }
