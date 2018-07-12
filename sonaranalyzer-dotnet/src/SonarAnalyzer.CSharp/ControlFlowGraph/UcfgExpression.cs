@@ -28,7 +28,6 @@ namespace SonarAnalyzer.ControlFlowGraph.CSharp
     internal abstract class UcfgExpression
     {
         public static UcfgExpression This { get; } = new ThisExpression();
-        public static UcfgExpression Constant { get; } = new ConstantExpression();
         public static UcfgExpression Unknown { get; } = new UnknownExpression();
 
         protected UcfgExpression(ISymbol symbol)
