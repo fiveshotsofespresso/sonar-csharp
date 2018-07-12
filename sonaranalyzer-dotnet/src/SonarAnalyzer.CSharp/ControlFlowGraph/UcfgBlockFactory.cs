@@ -42,7 +42,7 @@ namespace SonarAnalyzer.ControlFlowGraph.CSharp
         {
             var ucfgBlock = CreateBlockWithId(blockIdProvider.Get(block));
 
-            ucfgBlock.Instructions.AddRange(block.Instructions.SelectMany(instructionFactory.Create));
+            ucfgBlock.Instructions.AddRange(block.Instructions.SelectMany(instructionFactory.CreateFrom));
 
             if (block is JumpBlock jumpBlock &&
                 jumpBlock.JumpNode is ReturnStatementSyntax returnStatement)
@@ -81,13 +81,13 @@ namespace SonarAnalyzer.ControlFlowGraph.CSharp
 
             ucfgBlock.Jump = CreateJump(currentEntryBlockId);
 
-            ucfgBlock.Instructions.Add(instructionFactory.Create(methodDeclaration));
+            ucfgBlock.Instructions.Add(instructionFactory.CreateFrom(methodDeclaration));
 
             foreach (var parameter in methodSymbol.Parameters)
             {
                 var parameterInstructions = parameter.GetAttributes()
                     .Where(a => a.AttributeConstructor != null)
-                    .SelectMany(a => instructionFactory.CreateAttributeInstructions(
+                    .SelectMany(a => instructionFactory.CreateFromAttributeSyntax(
                         (AttributeSyntax)a.ApplicationSyntaxReference.GetSyntax(),
                         a.AttributeConstructor,
                         parameter.Name));
